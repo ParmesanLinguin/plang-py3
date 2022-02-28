@@ -1,4 +1,3 @@
-from lexer import Token
 from typing import NamedTuple
 from enum import Enum, auto
 
@@ -21,4 +20,6 @@ class ParseTreeNodeType(Enum):
 class ParseTreeNode(NamedTuple):
     type: ParseTreeNodeType
     children: 'list[ParseTreeNode]'
-    token: Token | None = None
+    token: 'Token | None' = None
+
+

@@ -1,3 +1,4 @@
+from collections import namedtuple
 from typing import NamedTuple, TypeAlias
 from lexer import TokenType, Token
 from nodes import ParseTreeNodeType, ParseTreeNode
@@ -14,7 +15,8 @@ class Expression(NamedTuple):
     type: 'None | LangType'
 
 class Program(NamedTuple):
-    functions: list['Node']
+    children: list['Node']
+    eof: 'AstToken'
 
 class Statement(NamedTuple):
     child: 'Node'
@@ -50,6 +52,14 @@ class TypeSpec(NamedTuple):
     type: 'Node'
     colon: 'AstToken'
 
+class IntegerLiteral(NamedTuple):
+    value: str
+    token: 'AstToken'
+
+class Identifier(NamedTuple):
+    value: str
+    token: 'AstToken'
+
 class AstToken(NamedTuple):
     token: 'Token'
     whitespace: list['Token']
@@ -58,15 +68,15 @@ Node = BinaryOperation | Expression | Program | Statement | FunctionDecl | Param
 
 def parse_tree_to_ast(root: ParseTreeNode): 
     if root.type == ParseTreeNodeType.Program:
-        return Program([parse_tree_to_ast(c) for c in root.children])
+        nodes = [parse_tree_to_ast(c) for c in root.children]
+        return Program(nodes[:-1], nodes[-1])
 
     elif root.type == ParseTreeNodeType.BlockExpression:
         nodes = [parse_tree_to_ast(c) for c in root.children]
         return Expression(nodes[0], nodes[-1], nodes[1:-1], None)
 
     elif root.type == ParseTreeNodeType.BlocklessExpression:
-        nodes = [parse_tree_to_ast(c) for c in root.children]
-        return Expression(None, None, nodes)
+        return parse_tree_to_ast(root.children[0])
 
     elif root.type == ParseTreeNodeType.Statement:
         nodes = [parse_tree_to_ast(c) for c in root.children]
@@ -107,17 +117,43 @@ def parse_tree_to_ast(root: ParseTreeNode):
         rparen = nodes.pop(-1)
 
         return ArgList(lparen, nodes, rparen)
+
+    elif root.type == ParseTreeNodeType.Token:
+        return AstToken(root.token, root.children)
+
+    elif root.type == ParseTreeNodeType.Term or root.type == ParseTreeNodeType.Factor:
+        cdn = root.children
+        
+        if len(cdn) == 1:
+            return parse_tree_to_ast(cdn[0])
+        
+        nodes = list(map(lambda x: parse_tree_to_ast(x), cdn[::-2]))
+        ops = list(reversed(cdn[1::2]))
+
+        while len(nodes) > 1:
+            nodes.append(BinaryOperation(nodes.pop(), nodes.pop(), ops.pop().token.content))
+
+        return nodes.pop()
+
+    elif root.type == ParseTreeNodeType.FunctionCall:
+        nodes = [parse_tree_to_ast(c) for c in root.children]
+        return FunctionCall(nodes[0], nodes[1])
+
+    elif root.type == ParseTreeNodeType.Element:
+        node = parse_tree_to_ast(root.children[0])
+
+        if node.token.type == TokenType.Integer:
+            return IntegerLiteral(node.token.content, node)
+
+        elif node.token.type == TokenType.Identifier:
+            return Identifier(node.token.content, node)
+
+        else:
+            raise Exception("Unreachable code")
+
+    elif root.type == ParseTreeNodeType.Whitespace:
+        pass
+
     else:
         raise NotImplementedError(f"Not implemented for type {root.type}")
-    # elif root.type == ParseTreeNodeType.FunctionCall:
-    #     pass
-    # elif root.type == ParseTreeNodeType.Term:
-    #     pass
-    # elif root.type == ParseTreeNodeType.Factor:
-    #     pass
-    # elif root.type == ParseTreeNodeType.Element:
-    #     pass
-    # elif root.type == ParseTreeNodeType.Token:
-    #     pass
-    # elif root.type == ParseTreeNodeType.Whitespace:
-    #     pass
+

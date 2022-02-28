@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum, auto, unique
 from typing import Optional, NamedTuple
 from errors import LineError, Position, get_whole_line, write_single_err
@@ -26,11 +27,15 @@ class TokenType(Enum):
 
     Whitespace = auto()
 
-class Token(NamedTuple):
+@dataclass
+class Token:
     type: TokenType
     content: Optional[str]
     position: Position
     source: str
+
+    left: 'Token | None' = None
+    right: 'Token | None' = None
 
 class LexError(NamedTuple):
     message: str
@@ -43,6 +48,8 @@ class Lexer:
         self.index = 0
         self.tokens: list[Token] = []
         self.errors: list[LexError] = []
+
+        self.last: 'Token | None' = None
 
         self.row = 1
         self.col = 1
@@ -102,7 +109,7 @@ class Lexer:
             else:
                 break
 
-        out = Token(TokenType.Identifier, self.input[self.index : self.index + length], 
+        out = Token(TokenType.Integer, self.input[self.index : self.index + length], 
             Position(self.index, self.row, self.col, self.row, self.col + length), self.source)
 
         self.push(out)
@@ -164,6 +171,11 @@ class Lexer:
             return None
 
     def push(self, token: Token) -> None:
+        token.left = self.last
+        if self.last:
+            self.last.right = token
+
+        self.last = token
         self.tokens.append(token)
 
     def push_err(self, err: LexError) -> None:

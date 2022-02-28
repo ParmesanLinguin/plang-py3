@@ -13,6 +13,8 @@ class Parser:
         self.cur_tok = None
         self.next_tok = None
 
+        self.last_tok = None
+
         if len(tokens) > 0:
             self.cur_tok = tokens[0]
             self.position += 1
@@ -193,7 +195,6 @@ class Parser:
 
         for t in l:
             if self.__peek_type() == t:
-                print(f"Accepted #{self.position} token {self.__peek_type()}")
                 into.append(self.__consume_token())
                 return True
         
@@ -208,11 +209,13 @@ class Parser:
     def __consume_token(self):
         buf = self.whitespace_buffer
         self.whitespace_buffer = []
-        return ParseTreeNode(ParseTreeNodeType.Token, buf, token = self.__consume())
+        cur = self.__consume()
+        return ParseTreeNode(ParseTreeNodeType.Token, buf, cur)
 
     def __consume_whitespace(self):
         while self.__peek_type() == TokenType.Whitespace:
-            token = ParseTreeNode(ParseTreeNodeType.Whitespace, [], self.__consume())
+            cur = self.__consume()
+            token = ParseTreeNode(ParseTreeNodeType.Whitespace, [], cur)
             self.whitespace_buffer.append(token)
 
     @staticmethod
@@ -223,7 +226,9 @@ class Parser:
         if self.cur_tok is None:
             raise Exception("Cannot consume null token")
         out_tok = self.cur_tok
+        self.last_tok = out_tok
         self.cur_tok = self.next_tok
         self.next_tok = self.tokens[self.position] if self.position < len(self.tokens) else None
         self.position += 1
+
         return out_tok

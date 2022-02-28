@@ -3,31 +3,53 @@ from errors import write_single_err, LineError, Position
 from lexer import Lexer, TokenType
 from nodes import ParseTreeNode, ParseTreeNodeType
 from parser import Parser
-from plast import FunctionDecl, Program, Statement, parse_tree_to_ast, Node, BinaryOperation
+from plast import FunctionDecl, Program, Statement, parse_tree_to_ast, Node, BinaryOperation, Expression, IntegerLiteral, Identifier
+from validation import validate_ast
+from time import perf_counter_ns
 
 def main() -> None:
     while True:
-        source = input("Enter an expression to parse:\n")
+        source = ""
+        print("Enter an expression to parse:\n")
+        while True:
+            inpt = input("> ")
+            if inpt == ".comp":
+                break
+            else:
+                source += "\n" + inpt
+        
+        start = perf_counter_ns()
+        print("\nLexing...")
         try:
             l = Lexer(source, "input")
             tokens = l.lex()
         except Exception as e:
+            print("FAILED!")
             traceback.print_exception(e)
             break
+        
+        end = perf_counter_ns()
 
-        for token in tokens:
-            print(token)
+        print(f"DONE! {format_ns(end - start)}")
+        print(f"\nParsing... ")
+
+        start = perf_counter_ns()
 
         try:
             parser = Parser(tokens, source)
             p_root = parser.parse()
-            print_root(p_root, "", True)
 
             ast_root = parse_tree_to_ast(p_root)
-            print_root(ast_root, "", True)
+
+            validate_ast(ast_root)
         except Exception as e:
+            print("\nFAILED!\n")
             traceback.print_exception(e)
             break
+        
+        end = perf_counter_ns()
+
+        print(f"DONE! {format_ns(end - start)}")
 
 def print_root(root: ParseTreeNode | Node, indent: str, last: bool):
     print(indent, end="")
@@ -35,7 +57,9 @@ def print_root(root: ParseTreeNode | Node, indent: str, last: bool):
     indent += "  " if last else "| "
 
     if type(root) == ParseTreeNode:
-        print(root.type if not root.type == ParseTreeNodeType.Token else f"{root.token.type} {root.token.content}")
+        name = root.type if not root.type == ParseTreeNodeType.Token else f"{root.token.type} {root.token.content}"
+        
+        print(name)
 
         children = list(filter(lambda c: c.type != ParseTreeNodeType.Whitespace, root.children))
         for i, c in enumerate(children):
@@ -43,12 +67,7 @@ def print_root(root: ParseTreeNode | Node, indent: str, last: bool):
     else:
         t = type(root)
 
-        if t == BinaryOperation:
-            print(t.op)
-            print_root(t.left, indent + "  ", False)
-            print_root(t.right, indent + "  ", True)
-
-        elif t == Program:
+        if t == Program:
             print("Program")
             
             for i, c in enumerate(root.children):
@@ -59,13 +78,40 @@ def print_root(root: ParseTreeNode | Node, indent: str, last: bool):
             print_root(root.child, indent + "  ", True)
 
         elif t == FunctionDecl:
-            str1 = f"{('fun' if not root.pure or root.pure.type == TokenType.Kw_Pure else 'imp')} {root.name}"
-            str2 = "(" + ", ".join([f'{p.name}: {p.type}' for p in root.parameters]) + ")"
+            str1 = f"{('fun' if not root.pure or root.pure.token.type == TokenType.Kw_Fun else 'imp')} {root.name.token.content}"
+            str2 = "(" + ", ".join([f'{p.name.value}: {p.type.value}' for p in root.parameters.params]) + ")"
             print(str1 + str2)
             print_root(root.body, indent + "  ", True)
 
+        elif t == Expression:
+            print("Expression")
+
+            for i, c in enumerate(root.children):
+                print_root(c, indent + "  ", i == len(root.children) - 1)
+
+        elif t == BinaryOperation:
+            print(f"BinaryOperation {root.op}")
+
+            print_root(root.left, indent + "  ", False)
+            print_root(root.right, indent + "  ", True)
+
+        elif t == IntegerLiteral:
+            print(f"Integer {root.value}")
+
+        elif t == Identifier:
+            print(f"Identifier {root.value}")
         else:
             print("not implemented")
+
+def format_ns(time): 
+    if time <= 1_000:
+        return f"{time} ns"
+    elif time > 1_000 and time <= 1_000_000:
+        return f"{(time / 1_000):.2f} µs"
+    elif time > 1_000_000 and time <= 1_000_000_000:
+        return f"{(time / 1_000_000):.2f} ms"
+    else:
+        return f"{(time / 1_000_000_000):.2f} s"
 
 if __name__ == "__main__":
     main()

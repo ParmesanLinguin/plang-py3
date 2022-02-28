@@ -1,5 +1,6 @@
 from typing import NamedTuple
 from sys import stdout
+from nodes import ParseTreeNode
 
 class Position(NamedTuple):
     index: int
@@ -20,7 +21,7 @@ class LineError(NamedTuple):
 def write_single_err(err: LineError):
     write = stdout.write
     write(red + "error" + reset + ": " + err.message + "\n")
-    write(italics + "--  in " + err.file + reset + "(" + green + str(err.pos.start_row) + reset + ", " + green + str(err.pos.start_col) + reset + ", " + green + str(err.pos.start_row) + reset + ", " + green + str(err.pos.end_col) + reset + ")\n")
+    write(italics + "--  in " + err.file + reset + "(" + green + str(err.pos.start_row) + reset + ":" + green + str(err.pos.start_col) + reset + "-" + green + str(err.pos.start_row) + reset + ":" + green + str(err.pos.end_col) + reset + ")\n")
 
     spaces = " " * len(err.line)
     length = (err.pos.end_col - err.pos.start_col)
@@ -44,6 +45,58 @@ def get_whole_line(string: str, index: int):
         end += 1
 
     return string[start : end]
+
+def construct_line(node):
+    from lexer import Token
+    tokens: list['Token'] = []
+    content: str = ""
+    current = node
+
+    done = False
+    while current.left and not done:
+        token = current.left
+        tokens.insert(0, token)
+
+        for i, c in enumerate(reversed(token.content)):
+            if c == "\n":
+                done = True
+                break
+            else:
+                content = c + content
+
+        current = token
+
+    current = node
+    while True:
+        token = current
+
+        tokens.append(token)
+
+        for c in token.content:
+            if c == "\n":
+                return content
+            else:
+                content = content + c
+
+        if not token.right:
+            return content
+
+        current = token.right
+
+    # string = ""
+
+    # for i, (t, c) in enumerate(zip(tokens, content)):
+    #     if i == len(tokens):
+    #         string += t.content
+    #         return string
+
+    #     for char in c:
+    #         if char == "\n":
+    #             string = ""
+    #             continue
+    #         c += char
+
+    # return string
 
 __escape = "\u001b"
 black = __escape + "[30m"
